@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Тренажёр дат по истории</title>
+    <meta
+      name="description"
+      content="Мини-сайт для бесконечного запоминания дат по истории: карточки, тест с вариантами и ввод ответа вручную."
+    />
+    <meta name="theme-color" content="#17324d" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,600;7..72,700&family=Manrope:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script defer src="data.js"></script>
+    <script defer src="script.js"></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="orb orb-a"></div>
+      <div class="orb orb-b"></div>
+
+      <main class="layout">
+        <section class="hero">
+          <p class="eyebrow">История России • бесконечное повторение</p>
+          <h1>Тренажёр дат, который гоняет слабые места до автоматизма</h1>
+          <p class="hero-copy">
+            Внутри уже загружены даты из твоего файла. Можно учить как через
+            обычные карточки, так и через выбор ответа или ввод даты вручную.
+          </p>
+
+          <div class="hero-badges">
+            <span class="badge" id="total-cards-badge">0 дат</span>
+            <span class="badge" id="mastery-badge">Освоение: 0%</span>
+            <span class="badge" id="focus-badge">Сложных карточек: 0</span>
+          </div>
+        </section>
+
+        <section class="panel controls-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Режим тренировки</p>
+              <h2>Выбирай удобный способ запоминания</h2>
+            </div>
+            <button class="ghost-button" id="reset-progress" type="button">
+              Сбросить прогресс
+            </button>
+          </div>
+
+          <div class="mode-switch" id="mode-switch" role="tablist" aria-label="Режим обучения">
+            <button class="mode-button active" data-mode="flash" type="button">
+              Карточки
+            </button>
+            <button class="mode-button" data-mode="choice" type="button">
+              Выбор ответа
+            </button>
+            <button class="mode-button" data-mode="type" type="button">
+              Ввести дату
+            </button>
+          </div>
+
+          <div class="tips-row">
+            <p>Карточки подмешиваются по кругу, а ошибки возвращаются быстрее.</p>
+            <p>
+              Горячие клавиши: <kbd>Space</kbd> показать, <kbd>1</kbd>/<kbd>2</kbd>
+              ответить, <kbd>Enter</kbd> дальше.
+            </p>
+          </div>
+        </section>
+
+        <section class="workspace">
+          <article class="panel trainer-panel">
+            <div class="trainer-topbar">
+              <div>
+                <p class="panel-kicker">Сейчас учим</p>
+                <p class="question-index" id="question-index">Карточка 1</p>
+              </div>
+              <div class="micro-stats">
+                <span id="session-reviewed">0 ответов</span>
+                <span id="session-streak">Серия: 0</span>
+              </div>
+            </div>
+
+            <div class="prompt-card" id="prompt-card">
+              <p class="prompt-label">Событие</p>
+              <h2 class="prompt-text" id="prompt-text">Загружаю даты…</h2>
+              <p class="prompt-helper" id="prompt-helper">
+                Режим карточек: сначала попробуй вспомнить дату, потом открой ответ.
+              </p>
+            </div>
+
+            <div class="answer-shell" id="answer-shell">
+              <div class="answer-display" id="answer-display" hidden>
+                <p class="answer-label">Дата</p>
+                <p class="answer-value" id="answer-value"></p>
+              </div>
+
+              <div class="flash-actions" id="flash-actions">
+                <button class="primary-button" id="reveal-answer" type="button">
+                  Показать дату
+                </button>
+                <div class="response-actions" id="response-actions" hidden>
+                  <button class="success-button" id="know-answer" type="button">
+                    Знаю
+                  </button>
+                  <button class="warning-button" id="repeat-answer" type="button">
+                    Повторить
+                  </button>
+                </div>
+              </div>
+
+              <div class="choices-grid" id="choices-grid" hidden></div>
+
+              <form class="type-form" id="type-form" hidden>
+                <label class="sr-only" for="typed-answer">Введи дату</label>
+                <input
+                  id="typed-answer"
+                  name="typed-answer"
+                  type="text"
+                  inputmode="text"
+                  autocomplete="off"
+                  placeholder="Например: 988 или 1700–1721"
+                />
+                <button class="primary-button" type="submit">Проверить</button>
+                <button class="ghost-button" id="cant-remember" type="button">
+                  Не помню
+                </button>
+              </form>
+
+              <div class="feedback" id="feedback" aria-live="polite"></div>
+              <button class="next-button" id="next-card" type="button" hidden>
+                Следующая карточка
+              </button>
+            </div>
+          </article>
+
+          <aside class="sidebar">
+            <section class="panel stat-panel">
+              <p class="panel-kicker">Статистика</p>
+              <div class="stat-grid">
+                <div class="stat-item">
+                  <span class="stat-value" id="correct-count">0</span>
+                  <span class="stat-label">Верно</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value" id="wrong-count">0</span>
+                  <span class="stat-label">Ошибок</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value" id="best-streak">0</span>
+                  <span class="stat-label">Лучшая серия</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value" id="strong-cards">0</span>
+                  <span class="stat-label">Уверенно знаешь</span>
+                </div>
+              </div>
+
+              <div class="mastery-bar">
+                <div class="mastery-bar-fill" id="mastery-bar-fill"></div>
+              </div>
+            </section>
+
+            <section class="panel challenge-panel">
+              <div class="panel-header compact">
+                <div>
+                  <p class="panel-kicker">Фокус на слабом</p>
+                  <h2>Что чаще всего путается</h2>
+                </div>
+              </div>
+              <ol class="challenge-list" id="challenge-list"></ol>
+            </section>
+          </aside>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
