@@ -1,6 +1,8 @@
 const STORAGE_KEY = "history-memory-trainer/v1";
+const DEFAULT_DATASET_ID = "important";
 
 const state = {
+  datasets: [],
   cards: [],
   progress: loadProgress(),
   currentCard: null,
@@ -9,18 +11,14 @@ const state = {
   answered: false,
   revealed: false,
   selectedChoice: null,
+  feedbackText: "",
   recentIds: [],
   dueRepeats: [],
   settings: {
     mode: "flash",
+    dataset: DEFAULT_DATASET_ID,
   },
-  session: {
-    reviewed: 0,
-    correct: 0,
-    wrong: 0,
-    streak: 0,
-    bestStreak: 0,
-  },
+  session: createSessionState(),
 };
 
 const elements = {
@@ -43,6 +41,8 @@ const elements = {
   feedback: document.querySelector("#feedback"),
   nextCard: document.querySelector("#next-card"),
   modeSwitch: document.querySelector("#mode-switch"),
+  datasetSwitch: document.querySelector("#dataset-switch"),
+  datasetNote: document.querySelector("#dataset-note"),
   resetProgress: document.querySelector("#reset-progress"),
   sessionReviewed: document.querySelector("#session-reviewed"),
   sessionStreak: document.querySelector("#session-streak"),
@@ -57,35 +57,110 @@ const elements = {
 boot();
 
 async function boot() {
-  const rawText = await getSourceText();
-  state.cards = parseCards(rawText);
-
-  if (!state.cards.length) {
-    elements.promptText.textContent = "Не получилось загрузить даты";
-    elements.promptHelper.textContent =
-      "Проверь, что файл history.txt или data.js лежит рядом с index.html.";
-    return;
-  }
+  state.datasets = getDatasets();
 
   if (state.progress.settings?.mode) {
     state.settings.mode = state.progress.settings.mode;
   }
 
+  if (
+    state.progress.settings?.dataset &&
+    state.datasets.some((dataset) => dataset.id === state.progress.settings.dataset)
+  ) {
+    state.settings.dataset = state.progress.settings.dataset;
+  }
+
   bindEvents();
   renderModeButtons();
-  nextCard();
-  updateStats();
+  renderDatasetButtons();
+  await applyDataset(state.settings.dataset, { resetSession: false });
 }
 
-async function getSourceText() {
-  if (typeof window.HISTORY_SOURCE === "string" && window.HISTORY_SOURCE.trim()) {
-    return window.HISTORY_SOURCE;
+function createSessionState() {
+  return {
+    reviewed: 0,
+    correct: 0,
+    wrong: 0,
+    streak: 0,
+    bestStreak: 0,
+  };
+}
+
+function getDatasets() {
+  if (Array.isArray(window.HISTORY_DATASETS) && window.HISTORY_DATASETS.length) {
+    return window.HISTORY_DATASETS.map((dataset) => ({
+      ...dataset,
+      file: dataset.file || "./history.txt",
+    }));
+  }
+
+  return [
+    {
+      id: "all",
+      label: "Все даты",
+      description: "основной список",
+      hint: "Если внешний конфиг не загрузился, тренажёр возьмёт стандартный файл history.txt.",
+      file: "./history.txt",
+    },
+  ];
+}
+
+function getDatasetById(datasetId) {
+  return state.datasets.find((dataset) => dataset.id === datasetId) || null;
+}
+
+async function applyDataset(datasetId, { resetSession = true } = {}) {
+  const dataset = getDatasetById(datasetId);
+  if (!dataset) {
+    return;
+  }
+
+  const rawText = await getDatasetText(dataset);
+
+  state.settings.dataset = dataset.id;
+  state.cards = parseCards(dataset.id, rawText);
+  state.currentCard = null;
+  state.currentChoices = [];
+  state.currentResult = null;
+  state.answered = false;
+  state.revealed = false;
+  state.selectedChoice = null;
+  state.feedbackText = "";
+  state.recentIds = [];
+  state.dueRepeats = [];
+
+  if (resetSession) {
+    state.session = createSessionState();
+  }
+
+  state.progress.settings = {
+    ...state.progress.settings,
+    mode: state.settings.mode,
+    dataset: state.settings.dataset,
+  };
+
+  renderDatasetButtons();
+
+  if (!state.cards.length) {
+    saveProgress();
+    renderTrainer();
+    updateStats();
+    return;
+  }
+
+  nextCard();
+  saveProgress();
+}
+
+async function getDatasetText(dataset) {
+  if (typeof dataset.source === "string" && dataset.source.trim()) {
+    return dataset.source;
   }
 
   try {
-    const response = await fetch("./history.txt");
+    const response = await fetch(dataset.file);
     if (!response.ok) {
-      throw new Error("source file missing");
+      throw new Error(`source file missing: ${dataset.file}`);
     }
 
     return await response.text();
@@ -95,17 +170,21 @@ async function getSourceText() {
   }
 }
 
-function parseCards(text) {
+function parseCards(datasetId, text) {
   const normalized = text
     .replace(/\u2028/g, "\n")
     .replace(/\r/g, "\n")
     .replace(/\n{2,}/g, "\n")
     .trim();
 
+  if (!normalized) {
+    return [];
+  }
+
   return normalized
     .split("\n")
     .map((line, index) => {
-      const parts = line.match(/^(.*?)\s+—\s+(.*)$/);
+      const parts = line.match(/^(.*)\s+—\s+(.*)$/);
       if (!parts) {
         return null;
       }
@@ -113,7 +192,7 @@ function parseCards(text) {
       const date = parts[1].trim();
       const event = parts[2].trim();
       return {
-        id: `card-${index + 1}`,
+        id: `${datasetId}-card-${index + 1}`,
         date,
         event,
       };
@@ -122,6 +201,15 @@ function parseCards(text) {
 }
 
 function bindEvents() {
+  elements.datasetSwitch.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-dataset]");
+    if (!button || button.dataset.dataset === state.settings.dataset) {
+      return;
+    }
+
+    await applyDataset(button.dataset.dataset);
+  });
+
   elements.modeSwitch.addEventListener("click", (event) => {
     const button = event.target.closest("[data-mode]");
     if (!button) {
@@ -132,6 +220,7 @@ function bindEvents() {
     state.progress.settings = {
       ...state.progress.settings,
       mode: state.settings.mode,
+      dataset: state.settings.dataset,
     };
     saveProgress();
     renderModeButtons();
@@ -189,14 +278,14 @@ function bindEvents() {
 
     localStorage.removeItem(STORAGE_KEY);
     state.progress = loadProgress();
-    state.session = {
-      reviewed: 0,
-      correct: 0,
-      wrong: 0,
-      streak: 0,
-      bestStreak: 0,
+    state.progress.settings = {
+      mode: state.settings.mode,
+      dataset: state.settings.dataset,
     };
+    state.session = createSessionState();
     state.dueRepeats = [];
+    state.recentIds = [];
+    saveProgress();
     nextCard();
     updateStats();
   });
@@ -237,6 +326,34 @@ function bindEvents() {
   });
 }
 
+function renderDatasetButtons() {
+  const activeDataset = getDatasetById(state.settings.dataset) || state.datasets[0];
+
+  elements.datasetSwitch.innerHTML = "";
+
+  state.datasets.forEach((dataset) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "dataset-button";
+    button.dataset.dataset = dataset.id;
+
+    if (dataset.id === state.settings.dataset) {
+      button.classList.add("active");
+    }
+
+    const title = document.createElement("strong");
+    title.textContent = dataset.label;
+
+    const description = document.createElement("span");
+    description.textContent = dataset.description;
+
+    button.append(title, description);
+    elements.datasetSwitch.append(button);
+  });
+
+  elements.datasetNote.textContent = activeDataset?.hint || "";
+}
+
 function renderModeButtons() {
   const buttons = elements.modeSwitch.querySelectorAll("[data-mode]");
   buttons.forEach((button) => {
@@ -246,7 +363,8 @@ function renderModeButtons() {
 
 function nextCard() {
   state.currentCard = pickNextCard();
-  state.currentChoices = state.settings.mode === "choice" ? buildChoices(state.currentCard) : [];
+  state.currentChoices =
+    state.settings.mode === "choice" && state.currentCard ? buildChoices(state.currentCard) : [];
   state.currentResult = null;
   state.answered = false;
   state.revealed = false;
@@ -257,7 +375,10 @@ function nextCard() {
     elements.typedAnswer.value = "";
   }
 
-  pushRecent(state.currentCard.id);
+  if (state.currentCard) {
+    pushRecent(state.currentCard.id);
+  }
+
   renderTrainer();
   updateStats();
 }
@@ -362,6 +483,7 @@ function submitResult(isCorrect, selectedChoice = null) {
   state.progress.settings = {
     ...state.progress.settings,
     mode: state.settings.mode,
+    dataset: state.settings.dataset,
   };
   saveProgress();
 
@@ -383,6 +505,20 @@ function queueRepeat(cardId) {
 
 function renderTrainer() {
   if (!state.currentCard) {
+    elements.questionIndex.textContent = "Карточки недоступны";
+    elements.promptText.textContent = "Не получилось загрузить выбранный набор дат";
+    elements.promptHelper.textContent =
+      "Проверь файлы history-all.txt и history-important.txt рядом с index.html.";
+    elements.answerValue.textContent = "";
+    elements.answerDisplay.hidden = true;
+    elements.feedback.textContent = "";
+    elements.feedback.className = "feedback";
+    elements.nextCard.hidden = true;
+    elements.revealAnswer.hidden = true;
+    elements.responseActions.hidden = true;
+    elements.choicesGrid.hidden = true;
+    elements.choicesGrid.innerHTML = "";
+    elements.typeForm.hidden = true;
     return;
   }
 
@@ -395,7 +531,8 @@ function renderTrainer() {
   elements.nextCard.hidden = !state.answered;
 
   const helperText = {
-    flash: "Сначала попробуй вспомнить дату сам, потом открой ответ и отметь, насколько уверенно знаешь.",
+    flash:
+      "Сначала попробуй вспомнить дату сам, потом открой ответ и отметь, насколько уверенно знаешь.",
     choice: "Выбери правильную дату из четырёх вариантов. Ошибки быстро вернутся в повторение.",
     type: "Введи дату вручную так, как она записана в списке. Дефис и тире можно писать по-разному.",
   };
@@ -403,7 +540,8 @@ function renderTrainer() {
   elements.promptHelper.textContent = helperText[state.settings.mode];
 
   elements.revealAnswer.hidden = state.settings.mode !== "flash" || state.revealed;
-  elements.responseActions.hidden = state.settings.mode !== "flash" || !state.revealed || state.answered;
+  elements.responseActions.hidden =
+    state.settings.mode !== "flash" || !state.revealed || state.answered;
   elements.choicesGrid.hidden = state.settings.mode !== "choice";
   elements.typeForm.hidden = state.settings.mode !== "type";
 
@@ -463,7 +601,8 @@ function updateStats() {
 
 function renderHardCards(hardCards) {
   if (!hardCards.length) {
-    elements.challengeList.innerHTML = '<li class="challenge-empty">Пока сложных карточек нет. Продолжай, и тренажёр сам найдёт слабые места.</li>';
+    elements.challengeList.innerHTML =
+      '<li class="challenge-empty">Пока сложных карточек нет. Продолжай, и тренажёр сам найдёт слабые места.</li>';
     return;
   }
 
@@ -503,7 +642,10 @@ function getMasteryPercent() {
       return sum;
     }
 
-    const score = Math.max(0, Math.min(1, (stats.correct + stats.streak) / (stats.seen + stats.wrong + 1)));
+    const score = Math.max(
+      0,
+      Math.min(1, (stats.correct + stats.streak) / (stats.seen + stats.wrong + 1)),
+    );
     return sum + score;
   }, 0);
 

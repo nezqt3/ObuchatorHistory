@@ -29,8 +29,9 @@
           <p class="eyebrow">История России • бесконечное повторение</p>
           <h1>Тренажёр дат, который гоняет слабые места до автоматизма</h1>
           <p class="hero-copy">
-            Внутри уже загружены даты из твоего файла. Можно учить как через
-            обычные карточки, так и через выбор ответа или ввод даты вручную.
+            Внутри уже собран общий список и отдельный набор с важными датами.
+            Можно выбрать объём, который хочешь учить, а потом тренироваться через
+            карточки, тест с вариантами или ввод даты вручную.
           </p>
 
           <div class="hero-badges">
@@ -43,13 +44,18 @@
         <section class="panel controls-panel">
           <div class="panel-header">
             <div>
-              <p class="panel-kicker">Режим тренировки</p>
-              <h2>Выбирай удобный способ запоминания</h2>
+              <p class="panel-kicker">Наборы и режимы</p>
+              <h2>Сначала выбери объём, потом способ тренировки</h2>
             </div>
             <button class="ghost-button" id="reset-progress" type="button">
               Сбросить прогресс
             </button>
           </div>
+
+          <div class="dataset-switch" id="dataset-switch" role="tablist" aria-label="Набор дат"></div>
+          <p class="dataset-note" id="dataset-note">
+            Загружаю набор дат…
+          </p>
 
           <div class="mode-switch" id="mode-switch" role="tablist" aria-label="Режим обучения">
             <button class="mode-button active" data-mode="flash" type="button">

@@ -162,6 +162,66 @@ button {
   font-size: 1.4rem;
 }
 
+.dataset-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: 1.15rem;
+}
+
+.dataset-button {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: start;
+  min-height: 5rem;
+  padding: 1rem 1.05rem;
+  border-radius: 1.35rem;
+  border: 1px solid rgba(23, 50, 77, 0.1);
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(255, 248, 237, 0.74)),
+    rgba(255, 255, 255, 0.68);
+  color: var(--ink);
+  text-align: left;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.dataset-button:hover {
+  transform: translateY(-1px);
+}
+
+.dataset-button strong {
+  font-size: 1rem;
+}
+
+.dataset-button span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.dataset-button.active {
+  border-color: rgba(23, 50, 77, 0.4);
+  background:
+    linear-gradient(145deg, rgba(23, 50, 77, 0.96), rgba(44, 114, 136, 0.9)),
+    rgba(23, 50, 77, 0.94);
+  color: #fff9f0;
+  box-shadow: 0 16px 36px rgba(23, 50, 77, 0.18);
+}
+
+.dataset-button.active span {
+  color: rgba(255, 249, 240, 0.82);
+}
+
+.dataset-note {
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 .ghost-button,
 .mode-button,
 .next-button,
@@ -542,6 +602,7 @@ kbd {
   }
 
   .choices-grid,
+  .dataset-switch,
   .type-form,
   .stat-grid {
     grid-template-columns: 1fr;
