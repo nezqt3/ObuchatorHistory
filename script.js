@@ -1,5 +1,7 @@
 const STORAGE_KEY = "history-memory-trainer/v1";
 const DEFAULT_DATASET_ID = "important";
+const URL_PARAM_DATASET = "set";
+const URL_PARAM_MODE = "mode";
 
 const state = {
   datasets: [],
@@ -58,6 +60,7 @@ boot();
 
 async function boot() {
   state.datasets = getDatasets();
+  const urlSettings = getSettingsFromUrl();
 
   if (state.progress.settings?.mode) {
     state.settings.mode = state.progress.settings.mode;
@@ -70,10 +73,19 @@ async function boot() {
     state.settings.dataset = state.progress.settings.dataset;
   }
 
+  if (isValidMode(urlSettings.mode)) {
+    state.settings.mode = urlSettings.mode;
+  }
+
+  if (getDatasetById(urlSettings.dataset)) {
+    state.settings.dataset = urlSettings.dataset;
+  }
+
   bindEvents();
   renderModeButtons();
   renderDatasetButtons();
-  await applyDataset(state.settings.dataset, { resetSession: false });
+  await applyDataset(state.settings.dataset, { resetSession: false, syncUrl: false });
+  syncUrlState({ replace: true });
 }
 
 function createSessionState() {
@@ -109,7 +121,7 @@ function getDatasetById(datasetId) {
   return state.datasets.find((dataset) => dataset.id === datasetId) || null;
 }
 
-async function applyDataset(datasetId, { resetSession = true } = {}) {
+async function applyDataset(datasetId, { resetSession = true, syncUrl = true } = {}) {
   const dataset = getDatasetById(datasetId);
   if (!dataset) {
     return;
@@ -140,16 +152,19 @@ async function applyDataset(datasetId, { resetSession = true } = {}) {
   };
 
   renderDatasetButtons();
+  saveProgress();
+
+  if (syncUrl) {
+    syncUrlState();
+  }
 
   if (!state.cards.length) {
-    saveProgress();
     renderTrainer();
     updateStats();
     return;
   }
 
   nextCard();
-  saveProgress();
 }
 
 async function getDatasetText(dataset) {
@@ -184,13 +199,12 @@ function parseCards(datasetId, text) {
   return normalized
     .split("\n")
     .map((line, index) => {
-      const parts = line.match(/^(.*)\s+—\s+(.*)$/);
+      const parts = splitCardLine(line);
       if (!parts) {
         return null;
       }
 
-      const date = parts[1].trim();
-      const event = parts[2].trim();
+      const [date, event] = parts;
       return {
         id: `${datasetId}-card-${index + 1}`,
         date,
@@ -200,7 +214,33 @@ function parseCards(datasetId, text) {
     .filter(Boolean);
 }
 
+function splitCardLine(line) {
+  const parts = line.split(" — ").map((part) => part.trim());
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const dateParts = [parts[0]];
+  let eventStartIndex = 1;
+
+  while (eventStartIndex < parts.length - 1 && isDateContinuation(parts[eventStartIndex])) {
+    dateParts.push(parts[eventStartIndex]);
+    eventStartIndex += 1;
+  }
+
+  const date = dateParts.join(" — ").trim();
+  const event = parts.slice(eventStartIndex).join(" — ").trim();
+
+  return date && event ? [date, event] : null;
+}
+
+function isDateContinuation(value) {
+  return /^(\d{1,4}|[IVXLC]+|январ|феврал|март|апрел|май|мая|июн|июл|август|сентябр|октябр|ноябр|декабр|начало|середина|конец)\b/i.test(value);
+}
+
 function bindEvents() {
+  window.addEventListener("popstate", handlePopState);
+
   elements.datasetSwitch.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-dataset]");
     if (!button || button.dataset.dataset === state.settings.dataset) {
@@ -223,6 +263,7 @@ function bindEvents() {
       dataset: state.settings.dataset,
     };
     saveProgress();
+    syncUrlState();
     renderModeButtons();
     nextCard();
   });
@@ -352,6 +393,63 @@ function renderDatasetButtons() {
   });
 
   elements.datasetNote.textContent = activeDataset?.hint || "";
+}
+
+function getSettingsFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+
+  return {
+    dataset: params.get(URL_PARAM_DATASET) || params.get("dataset") || "",
+    mode: params.get(URL_PARAM_MODE) || "",
+  };
+}
+
+function isValidMode(mode) {
+  return ["flash", "choice", "type"].includes(mode);
+}
+
+function syncUrlState({ replace = false } = {}) {
+  const url = new URL(window.location.href);
+  url.searchParams.set(URL_PARAM_DATASET, state.settings.dataset);
+  url.searchParams.set(URL_PARAM_MODE, state.settings.mode);
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+  if (nextUrl === currentUrl) {
+    return;
+  }
+
+  const historyMethod = replace ? "replaceState" : "pushState";
+  window.history[historyMethod]({ dataset: state.settings.dataset, mode: state.settings.mode }, "", nextUrl);
+}
+
+async function handlePopState() {
+  const urlSettings = getSettingsFromUrl();
+  const nextDataset = getDatasetById(urlSettings.dataset)?.id || state.settings.dataset;
+  const nextMode = isValidMode(urlSettings.mode) ? urlSettings.mode : state.settings.mode;
+  const datasetChanged = nextDataset !== state.settings.dataset;
+  const modeChanged = nextMode !== state.settings.mode;
+
+  if (!datasetChanged && !modeChanged) {
+    return;
+  }
+
+  state.settings.mode = nextMode;
+  state.progress.settings = {
+    ...state.progress.settings,
+    mode: state.settings.mode,
+    dataset: nextDataset,
+  };
+  renderModeButtons();
+
+  if (datasetChanged) {
+    await applyDataset(nextDataset, { resetSession: false, syncUrl: false });
+    return;
+  }
+
+  saveProgress();
+  nextCard();
 }
 
 function renderModeButtons() {
